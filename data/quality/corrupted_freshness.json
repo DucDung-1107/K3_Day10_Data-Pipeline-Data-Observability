@@ -1,0 +1,9 @@
+{
+  "timestamp": "2026-08-06T03:56:08.610045+00:00",
+  "latest_published": "2026-07-10",
+  "oldest_published": "2020-01-01",
+  "stale_rows": 2,
+  "total_rows": 23,
+  "is_fresh": false,
+  "threshold_days": 180
+}

@@ -105,6 +105,10 @@ def build_clean_dataframe(records: list[PaperRecord], run_date: datetime) -> pd.
     # Sort results chronologically descending
     df = df.sort_values(by="published", ascending=False).reset_index(drop=True)
 
+    # Inject schema compatibility copy columns for user validation checks
+    df["id"] = df["paper_id"]
+    df["abstract"] = df["summary"]
+
     print("--- Cleaning Audit Log ---")
     print(f"Total raw records input: {len(records)}")
     print(f"Dropped due to missing title: {dropped_missing_title}")
@@ -115,4 +119,5 @@ def build_clean_dataframe(records: list[PaperRecord], run_date: datetime) -> pd.
     print("--------------------------")
 
     return df
+
 

@@ -1,0 +1,21 @@
+{
+  "report_name": "repaired_quality",
+  "timestamp": "2026-08-06T03:56:36.716170+00:00",
+  "success": true,
+  "metrics": {
+    "total_rows": 24,
+    "missing_titles": 0,
+    "missing_summaries": 0,
+    "duplicate_ids": 0,
+    "short_summaries": 0,
+    "negative_ages": 0
+  },
+  "checks": {
+    "has_rows": true,
+    "no_missing_titles": true,
+    "no_missing_summaries": true,
+    "no_duplicates": true,
+    "no_short_summaries": true,
+    "no_negative_ages": true
+  }
+}
