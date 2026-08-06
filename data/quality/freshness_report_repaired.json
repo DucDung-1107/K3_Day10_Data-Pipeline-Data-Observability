@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-06T04:31:33+00:00",
+  "generated_at": "2026-08-06T04:32:49+00:00",
   "threshold_days": 180,
   "total_rows": 24,
   "latest_published": "2026-08-01",
@@ -12,5 +12,5 @@
   "median_age_days": 66,
   "max_age_days": 175,
   "is_fresh": true,
-  "report_path": "/Users/langthiphuonghue/AITHUCCHIEN/LAB/K3_Day10_Data-Pipeline-Data-Observability/data/quality/freshness_report.json"
+  "report_path": "/Users/langthiphuonghue/AITHUCCHIEN/LAB/K3_Day10_Data-Pipeline-Data-Observability/data/quality/freshness_report_repaired.json"
 }

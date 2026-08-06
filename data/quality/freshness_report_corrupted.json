@@ -1,0 +1,16 @@
+{
+  "generated_at": "2026-08-06T04:32:22+00:00",
+  "threshold_days": 180,
+  "total_rows": 23,
+  "latest_published": "2026-07-13",
+  "oldest_published": "2000-01-01",
+  "fresh_rows": 21,
+  "stale_rows": 2,
+  "unknown_age_rows": 0,
+  "stale_ratio": 0.087,
+  "min_age_days": 24,
+  "median_age_days": 76,
+  "max_age_days": 9714,
+  "is_fresh": false,
+  "report_path": "/Users/langthiphuonghue/AITHUCCHIEN/LAB/K3_Day10_Data-Pipeline-Data-Observability/data/quality/freshness_report_corrupted.json"
+}
