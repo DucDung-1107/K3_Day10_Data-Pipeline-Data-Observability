@@ -16,7 +16,7 @@ from observability.reporting import generate_phase1_report
 
 def validate_clean_schema(df: pd.DataFrame) -> None:
     """Mục 3: Đảm bảo Schema ổn định trước khi đi tiếp"""
-    expected_columns = {"id", "title", "abstract"} 
+    expected_columns = {"paper_id", "title", "summary", "text_for_embedding"} 
     missing_cols = expected_columns - set(df.columns)
     if missing_cols:
         raise ValueError(f"Blocker: Clean Schema không ổn định! Thiếu các cột bắt buộc: {missing_cols}")
