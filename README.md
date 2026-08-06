@@ -34,6 +34,34 @@ Crossref API
     -> compare baseline/corrupted/repaired
 ```
 
+Sơ đồ chi tiết cho Pha 1 (Baseline Pipeline):
+
+```mermaid
+graph TD
+    subgraph Vai_tro_2["Vai trò 2: Data & Recovery"]
+        A((Crossref API)) -->|Fetch| B[Raw Data]
+        B -->|Lưu trữ| B_file[📁 data/raw/]
+        B -->|Clean Schema| C[Clean Data]
+        C -->|Lưu trữ| C_file[📁 data/clean/]
+    end
+
+    subgraph Vai_tro_3["Vai trò 3: RAG & Index"]
+        C_file -->|Đọc file clean| D[Tạo Text for Embedding]
+        D -->|Embed (MiniLM)| E[Chroma Index]
+        E -->|Lưu trữ| E_file[📁 data/chroma/]
+    end
+
+    subgraph Vai_tro_4["Vai trò 4: Evaluation"]
+        E_file -->|Search/Lookup| F[Chạy Agent trên Test set]
+        F -->|Tính toán| G[Metrics Quality & Freshness]
+    end
+
+    subgraph Vai_tro_1["Vai trò 1: Orchestration (Bạn)"]
+        G -->|Tổng hợp| H[Báo cáo Markdown]
+        H -->|Lưu trữ| H_file[📁 report/baseline_report.md]
+    end
+```
+
 Kết thúc bài lab, học viên cần có:
 
 - Baseline pipeline chạy end-to-end trên dữ liệu sạch.
