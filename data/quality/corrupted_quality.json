@@ -1,21 +1,81 @@
 {
   "report_name": "corrupted_quality",
-  "timestamp": "2026-08-06T03:56:08.607731+00:00",
-  "success": false,
-  "metrics": {
-    "total_rows": 23,
-    "missing_titles": 0,
-    "missing_summaries": 2,
-    "duplicate_ids": 2,
-    "short_summaries": 2,
-    "negative_ages": 0
+  "generated_at": "2026-08-06T04:48:07+00:00",
+  "row_count": 23,
+  "thresholds": {
+    "min_rows": 4,
+    "min_summary_chars": 100,
+    "freshness_threshold_days": 180
   },
-  "checks": {
-    "has_rows": true,
-    "no_missing_titles": true,
-    "no_missing_summaries": false,
-    "no_duplicates": false,
-    "no_short_summaries": false,
-    "no_negative_ages": true
-  }
+  "checks": [
+    {
+      "name": "schema_columns_present",
+      "status": "pass",
+      "observed": "none",
+      "expected": "no missing column",
+      "details": "Required: paper_id, title, summary, text_for_embedding, published, age_days. Missing columns break embedding, evaluation or freshness downstream."
+    },
+    {
+      "name": "row_count_minimum",
+      "status": "pass",
+      "observed": 23,
+      "expected": ">= 4 rows",
+      "details": "A dataset smaller than top_k cannot return a full retrieval result set."
+    },
+    {
+      "name": "paper_id_not_null",
+      "status": "pass",
+      "observed": 0,
+      "expected": "0 blank paper_id",
+      "details": "paper_id is the join key between raw, clean, index and ground truth."
+    },
+    {
+      "name": "paper_id_unique",
+      "status": "fail",
+      "observed": 1,
+      "expected": "0 duplicate paper_id",
+      "details": "Duplicates inflate the corpus and let one paper occupy several top-k slots."
+    },
+    {
+      "name": "title_not_empty",
+      "status": "pass",
+      "observed": 0,
+      "expected": "0 blank titles",
+      "details": "The title drives exact lookup in the agent."
+    },
+    {
+      "name": "text_for_embedding_not_empty",
+      "status": "pass",
+      "observed": 0,
+      "expected": "0 blank text_for_embedding",
+      "details": "An empty embedding text produces a document that can never be retrieved."
+    },
+    {
+      "name": "summary_min_length",
+      "status": "fail",
+      "observed": 2,
+      "expected": "0 rows below 100 characters",
+      "details": "Blank or truncated summaries are the corruption the agent notices first."
+    },
+    {
+      "name": "freshness_age_days",
+      "status": "fail",
+      "observed": {
+        "stale_rows": 2,
+        "unknown_age_rows": 0
+      },
+      "expected": "0 rows older than 180 days",
+      "details": "The source filter only requests recent papers, so any stale row is injected."
+    }
+  ],
+  "total_checks": 8,
+  "passed_checks": 5,
+  "failed_checks": 3,
+  "failed_check_names": [
+    "paper_id_unique",
+    "summary_min_length",
+    "freshness_age_days"
+  ],
+  "success": false,
+  "report_path": "D:\\Document\\LABS\\K3_Day10_Data-Pipeline-Data-Observability\\data\\quality\\corrupted_quality.json"
 }

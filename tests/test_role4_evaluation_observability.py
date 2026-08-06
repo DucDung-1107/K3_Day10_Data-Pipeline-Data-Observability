@@ -505,23 +505,12 @@ class TestCommittedArtifacts:
         ]
         assert len(set(manifests)) == 3, f"collections are not separate: {manifests}"
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="the baseline was re-run after phase 2 on a machine with no API key, so its "
-        "judge scores come from the heuristic fallback while corrupted/repaired come from "
-        "the LLM judge; the judge columns are not comparable",
-    )
     def test_every_state_was_judged_the_same_way(self):
         for state in ("baseline", "corrupted", "repaired"):
             answers = read_json(DATA_DIR / "results" / f"{state}_answers.json")
             fallbacks = [a for a in answers if "Fallback heuristic" in a["judge"]["reasoning"]]
             assert not fallbacks, f"{state}: {len(fallbacks)}/{len(answers)} judged by fallback"
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="the baseline was re-run after retrieval code changed, so repaired now scores "
-        "above the baseline it is supposed to reproduce; re-run phase 1 and phase 2 together",
-    )
     def test_repair_returns_to_the_baseline_rather_than_beating_it(self, metrics):
         for key in METRIC_KEYS:
             assert metrics["repaired"][key] <= metrics["baseline"][key] + 1e-9, key

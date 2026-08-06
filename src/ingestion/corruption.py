@@ -108,17 +108,24 @@ def corrupt_clean_dataframe(
             )
 
     # 1. Drop the newest records: simulates an ingestion window that silently stopped.
+    # Dropping a document is the only corruption here that can move retrieval_hit_rate,
+    # and it only moves it when the dropped paper is one the test set asks about, so the
+    # newest evaluated papers are dropped in preference to the newest papers overall.
     rows_before = len(corrupted)
-    newest = corrupted.sort_values("published", ascending=False).head(2)
-    dropped_ids = [str(paper_id) for paper_id in newest["paper_id"]]
+    newest_ids = [str(paper_id) for paper_id in corrupted.sort_values("published", ascending=False)["paper_id"]]
+    dropped_ids = _take([paper_id for paper_id in newest_ids if paper_id in ground_truth_ids], used, 2)
+    dropped_ids += _take(
+        [paper_id for paper_id in newest_ids if paper_id not in ground_truth_ids],
+        used,
+        2 - len(dropped_ids),
+    )
     corrupted = corrupted[~rows_for(dropped_ids)].reset_index(drop=True)
-    used.update(dropped_ids)
     events.append(
         _event(
             "drop_latest_records",
-            "Removed the two most recently published papers from the dataset.",
+            "Removed the most recently published papers the test set asks about.",
             dropped_ids,
-            {"count": len(dropped_ids), "selected_by": "published desc"},
+            {"count": len(dropped_ids), "selected_by": "published desc, evaluated papers first"},
             rows_before,
             len(corrupted),
             ground_truth_ids,

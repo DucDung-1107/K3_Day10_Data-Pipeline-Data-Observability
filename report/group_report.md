@@ -74,13 +74,13 @@ Crossref API
 
 | Biến/cấu hình             | Giá trị sử dụng |
 | ---------------------------- | ------------------- |
-| `LLM_PROVIDER`             | [Giá trị]         |
-| `LLM_MODEL`                | [Giá trị]         |
-| Embedding model              | [Giá trị]         |
-| Số lượng Crossref records | [Giá trị]         |
-| Retrieval`top_k`           | [Giá trị]         |
-| Freshness threshold          | [Giá trị]         |
-| Random seed, nếu có        | [Giá trị]         |
+| `LLM_PROVIDER`             | `gemini` khai báo trong `.env`; vì `GOOGLE_API_KEY` trống nên pipeline tự chuyển sang `openai` |
+| `LLM_MODEL`                | `gemini-2.5-flash` khai báo; thực tế chạy `gpt-4o-mini` sau khi fallback |
+| Embedding model              | `sentence-transformers/all-MiniLM-L6-v2` (384 chiều) |
+| Số lượng Crossref records | 24 raw → 24 clean (không record nào bị loại) |
+| Retrieval`top_k`           | 4 |
+| Freshness threshold          | 180 ngày |
+| Random seed, nếu có        | Không dùng. Cả `build_test_set` lẫn `corrupt_clean_dataframe` chọn record theo thứ tự cố định nên chạy lại cho kết quả giống hệt |
 
 Không dán nội dung API key hoặc file `.env` vào báo cáo.
 
@@ -128,8 +128,11 @@ python script/run_corruption_flow.py
 
 | Lệnh             | Trạng thái                                    | Thời điểm chạy gần nhất | Bằng chứng                         |
 | ----------------- | ----------------------------------------------- | ----------------------------- | ------------------------------------ |
-| Baseline pipeline | [Thành công/Thất bại một phần/Thất bại] | [Thời gian]                  | [Artifact hoặc log đã che secret] |
-| Corruption flow   | [Thành công/Thất bại một phần/Thất bại] | [Thời gian]                  | [Artifact hoặc log đã che secret] |
+| Baseline pipeline | Thành công | 2026-08-06 | `data/results/baseline_metrics.json`, `data/reports/phase1_report.md` |
+| Corruption flow   | Thành công | 2026-08-06 | `data/results/corrupted_metrics.json`, `data/results/repaired_metrics.json`, `data/reports/corruption_report.md` |
+| `pytest tests/` | 60 passed | 2026-08-06 | `tests/test_role4_evaluation_observability.py` |
+
+Trên Windows cần chạy với `PYTHONIOENCODING=utf-8`, vì pipeline in thông báo tiếng Việt còn console mặc định dùng cp1252.
 
 ## 5. Ingestion, cleaning và data contract
 
@@ -165,18 +168,20 @@ Giải thích cách nhóm tạo `text_for_embedding`, document ID và `age_days`
 
 | Thành phần                             | Cấu hình thực tế          |
 | ---------------------------------------- | ----------------------------- |
-| Số câu hỏi                            | [Số lượng]                 |
-| Các`question_type`                    | [Danh sách]                  |
-| Ground-truth document ID                 | [Cách tạo/đối chiếu]     |
-| Embedding model                          | [Tên model]                  |
-| Vector store/collection                  | [Tên/config]                 |
-| Retrieval`top_k`                       | [Giá trị]                   |
-| LLM provider/model                       | [Giá trị]                   |
-| Test set dùng chung cho ba trạng thái | [Đường dẫn hoặc ID/hash] |
+| Số câu hỏi                            | 24 (6 paper × 4 loại câu hỏi) |
+| Các`question_type`                    | `summary`, `authors`, `date`, `categories` — mỗi loại 6 câu |
+| Ground-truth document ID                 | Lấy trực tiếp `paper_id` của paper được chọn từ cleaned dataset, không tự đặt ID |
+| Embedding model                          | `sentence-transformers/all-MiniLM-L6-v2` |
+| Vector store/collection                  | ChromaDB, ba collection tách biệt: `papers-baseline`, `papers-corrupted`, `papers-repaired` |
+| Retrieval`top_k`                       | 4 |
+| LLM provider/model                       | OpenAI `gpt-4o-mini`, temperature 0.0 (dùng cho LLM judge) |
+| Test set dùng chung cho ba trạng thái | `data/eval/test_set.json` — 24 câu, sinh một lần và giữ nguyên |
 
 Giải thích vì sao test set được giữ nguyên khi đánh giá baseline, corrupted và repaired:
 
-[Giải thích tại đây.]
+Ba lần đánh giá chỉ có ý nghĩa nếu **biến duy nhất thay đổi là trạng thái dữ liệu**. Nếu sinh lại test set cho từng trạng thái thì câu hỏi và ground truth sẽ khác nhau, và mọi chênh lệch số liệu không còn phân biệt được là do dữ liệu hỏng hay do bộ câu hỏi đổi. Vì vậy test set được sinh một lần ở phase 1 rồi đóng băng; `corruption_flow.py` đọc lại đúng file đó cho cả corrupted và repaired, và `generate_corruption_report` in cảnh báo nếu ba lần chạy có số `samples` khác nhau.
+
+Câu hỏi được thiết kế bám đúng cách `retrieval/qa.py` trích câu trả lời: mỗi câu chứa đúng một cụm khóa mà `_extract_answer` nhận diện (`who authored`, `when was`, `what categories`, hoặc không cụm nào cho loại summary), và tiêu đề paper được bọc trong dấu nháy đơn để kích hoạt exact lookup. `ground_truth` được sinh bằng đúng phép trích đó trên document đúng, nên khi retrieval trúng thì token F1 đạt 1.0 và khi trượt thì tụt rõ rệt — nhờ vậy metric đo chất lượng dữ liệu chứ không đo độ vênh cách diễn đạt.
 
 ## 7. Kết quả baseline
 
@@ -184,23 +189,23 @@ Giải thích vì sao test set được giữ nguyên khi đánh giá baseline, 
 
 | Artifact                 | Đường dẫn thực tế                | Trạng thái | Ghi chú   |
 | ------------------------ | -------------------------------------- | ------------ | ---------- |
-| Raw response/records     | `data/raw/`                          | [Có/Thiếu] | [Ghi chú] |
-| Cleaned dataset          | `data/clean/`                        | [Có/Thiếu] | [Ghi chú] |
-| Embedding manifest/index | `data/embeddings/`                   | [Có/Thiếu] | [Ghi chú] |
-| Evaluation set           | `data/eval/`                         | [Có/Thiếu] | [Ghi chú] |
-| Baseline metrics         | `data/results/baseline_metrics.json` | [Có/Thiếu] | [Ghi chú] |
-| Quality/freshness        | `data/quality/`                      | [Có/Thiếu] | [Ghi chú] |
-| Baseline report          | `data/reports/phase1_report.md`      | [Có/Thiếu] | [Ghi chú] |
+| Raw response/records     | `data/raw/`                          | Có | `crossref_response.json` và `crossref_records.json`, 24 record |
+| Cleaned dataset          | `data/clean/`                        | Có | `papers_clean.csv` và `.json`, 24 dòng, `paper_id` unique |
+| Embedding manifest/index | `data/embeddings/`                   | Có | `papers_embeddings.json`, collection `papers-baseline` |
+| Evaluation set           | `data/eval/`                         | Có | `test_set.json`, 24 câu, đóng băng dùng cho cả ba trạng thái |
+| Baseline metrics         | `data/results/baseline_metrics.json` | Có | Kèm `baseline_answers.json` chứa toàn bộ câu trả lời và nhận xét của judge |
+| Quality/freshness        | `data/quality/`                      | Có | `baseline_quality.json` PASS 8/8, `freshness_report.json` FRESH |
+| Baseline report          | `data/reports/phase1_report.md`      | Có | Sinh tự động từ artifact, không nhập tay số liệu |
 
 ### Baseline metrics
 
 | Metric                 |       Giá trị | Diễn giải                             |
 | ---------------------- | --------------: | --------------------------------------- |
-| `retrieval_hit_rate` |     [Giá trị] | [Ý nghĩa trong kết quả của nhóm]  |
-| `mean_token_f1`      |     [Giá trị] | [Diễn giải]                           |
-| `judge_accuracy`     |     [Giá trị] | [Diễn giải]                           |
-| `mean_judge_score`   |     [Giá trị] | [Diễn giải]                           |
-| Ragas, nếu có        | [Giá trị/N/A] | [Diễn giải hoặc lý do không chạy] |
+| `retrieval_hit_rate` | 1.0000 | Cả 24/24 câu đều lấy được đúng document chứa đáp án trong top-4 |
+| `mean_token_f1`      | 1.0000 | Đạt tuyệt đối vì `ground_truth` được sinh bằng đúng phép trích của `qa._extract_answer`; khi retrieval trúng thì câu trả lời trùng khít ground truth. Đây là mốc trần có chủ đích, để mọi mức sụt sau này quy hết về chất lượng dữ liệu |
+| `judge_accuracy`     | 0.9583 | 23/24 câu được LLM judge chấm là đúng về bản chất |
+| `mean_judge_score`   | 4.9167 | Thang 1–5. Không đạt 5.0 tuyệt đối vì judge trừ điểm ở câu trả lời quá ngắn gọn dù không sai |
+| Ragas, nếu có        | Không chạy | `metrics.py` bỏ qua Ragas trừ khi đặt `RUN_RAGAS=1`; nhóm không bật để tiết kiệm thời gian và chi phí gọi LLM |
 
 ## 8. Data quality và freshness
 
@@ -208,51 +213,65 @@ Giải thích vì sao test set được giữ nguyên khi đánh giá baseline, 
 
 | Check        | Quality dimension | Ngưỡng/kỳ vọng | Kết quả baseline      | Bằng chứng |
 | ------------ | ----------------- | ------------------ | ----------------------- | ------------ |
-| [Tên check] | [Dimension]       | [Ngưỡng]         | [Pass/Fail + giá trị] | [Artifact]   |
-| [Tên check] | [Dimension]       | [Ngưỡng]         | [Pass/Fail + giá trị] | [Artifact]   |
+| `schema_columns_present` | Validity | Đủ 6 cột bắt buộc | Pass — không thiếu cột | `data/quality/baseline_quality.json` |
+| `row_count_minimum` | Completeness | ≥ `top_k` = 4 dòng | Pass — 24 dòng | nt |
+| `paper_id_not_null` | Completeness | 0 dòng trống ID | Pass — 0 | nt |
+| `paper_id_unique` | Uniqueness | 0 ID trùng | Pass — 0 | nt |
+| `title_not_empty` | Completeness | 0 title rỗng | Pass — 0 | nt |
+| `text_for_embedding_not_empty` | Completeness | 0 dòng rỗng | Pass — 0 | nt |
+| `summary_min_length` | Validity | 0 dòng dưới 100 ký tự | Pass — 0 | nt |
+| `freshness_age_days` | Timeliness | 0 dòng quá 180 ngày | Pass — 0 stale, 0 không xác định tuổi | nt |
+
+Ngưỡng 100 ký tự của `summary_min_length` khớp đúng quy tắc `cleaning.py` đang dùng để loại record, nên dữ liệu sạch hợp lệ không bao giờ bị báo lỗi oan.
 
 ### Freshness
 
 | Thuộc tính               | Giá trị                           |
 | -------------------------- | ----------------------------------- |
-| Freshness được đo tại | [Dataset/index/artifact]            |
-| Timestamp mới nhất       | [Giá trị]                         |
-| Ngưỡng freshness         | [Giá trị]                         |
-| Trạng thái baseline      | [Fresh/Stale/Unknown]               |
-| Lý do                     | [Giải thích dựa trên số liệu] |
+| Freshness được đo tại | Cleaned dataset, cột `published` và `age_days`; ghi ra `data/quality/freshness_report*.json` |
+| Timestamp mới nhất       | `2026-08-01` (baseline), paper cũ nhất `2026-02-12`, tuổi lớn nhất 175 ngày |
+| Ngưỡng freshness         | 180 ngày |
+| Trạng thái baseline      | FRESH |
+| Lý do                     | 0/24 dòng vượt ngưỡng và 0 dòng có ngày không parse được. Filter nguồn Crossref chỉ lấy paper trong 180 ngày gần nhất, nên dữ liệu sạch **không thể** có dòng stale — bất kỳ dòng stale nào xuất hiện về sau đều là do bị chèn vào. Vì vậy `is_fresh` được định nghĩa là `stale_rows == 0`, thay vì xét ngày mới nhất (cách đó sẽ bỏ lọt corruption chỉ làm cũ một phần dữ liệu) |
 
 ## 9. Corruption scenarios và repair
 
 | Corruption         | Cách tạo | Record bị tác động | Quality signal kỳ vọng | Tác động thực tế | Cách repair   |
 | ------------------ | ---------- | ---------------------: | ------------------------ | --------------------- | -------------- |
-| [Loại corruption] | [Mô tả]  |          [Số lượng] | [Kỳ vọng]              | [Artifact/metric]     | [Cách repair] |
-| [Loại corruption] | [Mô tả]  |          [Số lượng] | [Kỳ vọng]              | [Artifact/metric]     | [Cách repair] |
+| `drop_latest_records` | Xóa hẳn paper mới nhất khỏi dataset, ưu tiên paper mà test set có hỏi tới | 2 | Giảm row count | `retrieval_hit_rate` 1.0 → 0.667: document không còn trong index thì không thể lấy ra được | Nạp lại từ raw snapshot |
+| `blank_summary` | Gán `summary = ""` | 2 | `summary_min_length` FAIL | `summary_min_length` FAIL. Câu hỏi loại summary mất đáp án | nt |
+| `inject_noise` | Chèn 130 ký tự rác vào `summary` rồi dựng lại `text_for_embedding` | 2 | Không có check nào bắt được | Làm loãng embedding, kéo token F1 xuống nhưng không tạo tín hiệu quality nào | nt |
+| `truncate_title` | Cắt title còn 12 ký tự | 2 | Không có check nào bắt được | Phá exact lookup theo tiêu đề trong `qa.answer_question` | nt |
+| `stale_published_date` | Đặt `published = 2000-01-01`, tính lại `age_days = 9714` | 2 | `freshness_age_days` FAIL, freshness STALE | Đúng như kỳ vọng: 2/23 dòng stale, `is_fresh` false | nt |
+| `duplicate_rows` | Nhân bản dòng, giữ nguyên `paper_id` | 1 | `paper_id_unique` FAIL | Đúng như kỳ vọng. Một paper chiếm nhiều slot trong top-4 | nt |
 
 Corruption log:
 
 - Đường dẫn: `data/results/corruption_log.json`
-- Trạng thái: [Có/Thiếu]
-- Nhận xét: [Log có đủ loại corruption, record bị tác động và tham số hay không?]
+- Trạng thái: Có
+- Nhận xét: Log ghi đủ 6 kịch bản, mỗi kịch bản kèm danh sách `paper_id` bị tác động, tham số cụ thể, số dòng trước/sau, và cờ `hits_ground_truth`. Log còn tổng hợp `ground_truth_coverage = 1.0`, tức **cả 6/6 paper mà test set hỏi tới đều bị corrupt**. Đây là điều kiện bắt buộc: nếu chỉ làm hỏng những paper không câu hỏi nào đụng tới thì metric sẽ đứng yên và thí nghiệm không chứng minh được gì.
 
 Giải thích cách repair đảm bảo dữ liệu được phục hồi từ nguồn đáng tin cậy thay vì chỉ che kết quả lỗi:
 
-[Giải thích tại đây.]
+Repair chạy lại đúng `build_clean_dataframe` trên `data/raw/crossref_records.json` — bản snapshot đã lưu ở phase 1 — chứ không sửa tay dataset hỏng và cũng không gọi lại Crossref API. `corruption_flow.py` không import `fetch_source_records`, nên về mặt mã nguồn nó **không thể** lấy dữ liệu mới; nếu fetch lại thì corpus sẽ khác đi và ba trạng thái mất tính so sánh. Bằng chứng cho thấy repair thật sự phục hồi chứ không phải che số liệu: repaired trùng khít baseline ở cả bốn metric (1.0000 / 1.0000 / 0.9583 / 4.9167) và quay lại đủ 24 dòng, PASS 8/8 quality check.
 
 ## 10. So sánh baseline, corrupted và repaired
 
 | Metric/signal            | Baseline | Corrupted | Repaired | Thay đổi do corruption | Mức phục hồi | Nhận xét   |
 | ------------------------ | -------: | --------: | -------: | -----------------------: | --------------: | ------------ |
-| `retrieval_hit_rate`   |      [ ] |       [ ] |      [ ] |                      [ ] |             [ ] | [Nhận xét] |
-| `mean_token_f1`        |      [ ] |       [ ] |      [ ] |                      [ ] |             [ ] | [Nhận xét] |
-| `judge_accuracy`       |      [ ] |       [ ] |      [ ] |                      [ ] |             [ ] | [Nhận xét] |
-| `mean_judge_score`     |      [ ] |       [ ] |      [ ] |                      [ ] |             [ ] | [Nhận xét] |
-| Quality checks pass/fail |      [ ] |       [ ] |      [ ] |                      [ ] |             [ ] | [Nhận xét] |
-| Freshness status         |      [ ] |       [ ] |      [ ] |                      [ ] |             [ ] | [Nhận xét] |
+| `retrieval_hit_rate`   | 1.0000 | 0.6667 | 1.0000 | −0.3333 | 100% | 8/24 câu trượt vì document bị xóa khỏi index |
+| `mean_token_f1`        | 1.0000 | 0.6737 | 1.0000 | −0.3263 | 100% | Trượt retrieval kéo theo câu trả lời lấy từ document sai |
+| `judge_accuracy`       | 0.9583 | 0.7083 | 0.9583 | −0.2500 | 100% | 6 câu bị judge đánh là sai bản chất |
+| `mean_judge_score`     | 4.9167 | 3.9167 | 4.9167 | −1.0000 | 100% | Mất trọn 1 điểm trên thang 5 |
+| Quality checks pass/fail | PASS 8/8 | FAIL 5/8 | PASS 8/8 | 3 check chuyển sang FAIL | 100% | FAIL ở `paper_id_unique`, `summary_min_length`, `freshness_age_days` |
+| Freshness status         | FRESH | STALE | FRESH | 0 → 2 dòng stale | 100% | Ngày cũ nhất tụt từ 2026-02-12 xuống 2000-01-01 |
 
 Nêu ít nhất hai kết luận có quan hệ nhân quả được hỗ trợ bởi artifacts:
 
-1. [Corruption/data change] → [quality/freshness signal] → [retrieval/answer metric].
-2. [Repair action] → [quality/freshness recovery] → [agent metric recovery hoặc lý do chưa recovery].
+1. **Xóa 2 paper mà test set hỏi tới + nhân bản `paper_id` + làm rỗng summary** → `paper_id_unique`, `summary_min_length`, `freshness_age_days` chuyển FAIL và freshness thành STALE → `retrieval_hit_rate` tụt 1.0000 → 0.6667 và `judge_accuracy` tụt 0.9583 → 0.7083. Truy vết được từng bước qua `corruption_log.json` → `corrupted_quality.json` → `corrupted_metrics.json`.
+2. **Chạy lại cleaning từ `data/raw/crossref_records.json`** → quality trở lại PASS 8/8 và freshness trở lại FRESH → cả bốn metric quay về **đúng** giá trị baseline. Trùng khít chứ không chỉ xấp xỉ, vì repaired được dựng lại từ cùng snapshot raw đã tạo ra baseline.
+
+Giới hạn của kết luận này: `inject_noise` và `truncate_title` **không kích hoạt bất kỳ quality check nào**. Chúng vẫn góp phần kéo metric xuống, nhưng nếu chỉ nhìn báo cáo data quality thì hai dạng lỗi này hoàn toàn vô hình. Nói cách khác, quality gate hiện tại phát hiện được thiếu và trùng dữ liệu, nhưng chưa phát hiện được dữ liệu *bị bóp méo*.
 
 Không kết luận corruption “có tác động” nếu số liệu không cho thấy thay đổi. Nếu kết quả khác kỳ vọng, mô tả giả thuyết và cách nhóm đã kiểm tra.
 

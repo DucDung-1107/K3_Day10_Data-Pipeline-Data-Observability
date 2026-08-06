@@ -1,42 +1,67 @@
-# Baseline Data Pipeline Report (Phase 1)
+# Phase 1 - Baseline report
 
-This report details the execution and validation of the baseline RAG data pipeline.
+_Generated at 2026-08-06T04:42:42+00:00_
 
-## 1. Ingestion Metrics
+Every number below is rendered from the artifacts written by this run; nothing is
+typed in by hand.
 
-| Property | Value |
+## 1. Source
+
+| Source field | Value |
 | --- | --- |
-| Source API | Crossref REST API |
-| Query | `agentic retrieval augmented generation large language model` |
-| Filter | `from-pub-date:2026-02-07,has-abstract:true` |
-| Raw Records Fetched | 24 |
-| Cleaned Records Output | 24 |
+| `source_api` | Crossref REST API |
+| `query` | agentic retrieval augmented generation large language model |
+| `filter` | from-pub-date:2026-02-07,has-abstract:true |
+| `raw_records` | 24 |
 
-## 2. Evaluation Metrics
+## 2. Evaluation metrics
 
-| Metric | Value | Interpretation |
-| --- | --- | --- |
-| **Retrieval Hit Rate** | 0.8333 | Proportion of queries where the ground truth document was retrieved |
-| **Mean Token F1** | 0.8824 | Word-level overlap between predicted and reference answers |
-| **Judge Accuracy** | 0.8750 | Proportion of answers judged correct (materially correct) |
-| **Mean Judge Score** | 4.5417 | Average quality score (1 to 5) given by the evaluator |
+| Metric | Value |
+| --- | ---: |
+| `samples` | 24 |
+| `retrieval_hit_rate` | 1.0000 |
+| `mean_token_f1` | 1.0000 |
+| `judge_accuracy` | 0.9583 |
+| `mean_judge_score` | 4.9167 |
 
-## 3. Data Quality Validation
+### Ragas
 
-- **Overall Quality Success**: `PASS`
-- **Timestamp**: `2026-08-06T03:41:35.860286+00:00`
+_Skipped: Set RUN_RAGAS=1 to enable the slower Ragas pass._
 
-### Checks Executed:
-- **Has Rows**: `PASS` (Total: 24)
-- **No Missing Titles**: `PASS` (Missing: 0)
-- **No Missing Summaries**: `PASS` (Missing: 0)
-- **No Duplicates**: `PASS` (Duplicates: 0)
-- **No Short Summaries**: `PASS` (Short < 100 char: 0)
-- **No Negative Age**: `PASS` (Negative: 0)
+## 3. Data quality
 
-## 4. Freshness Monitoring
+- Overall: **PASS** (8/8 checks passed)
+- Rows checked: 24
 
-- **Status**: `FRESH`
-- **Oldest Publication Date**: `2026-02-12`
-- **Latest Publication Date**: `2026-08-01`
-- **Stale Rows (exceeding 180 days)**: 0 / 24
+| Check | Status | Observed | Expected |
+| --- | --- | --- | --- |
+| `schema_columns_present` | pass | none | no missing column |
+| `row_count_minimum` | pass | 24 | >= 4 rows |
+| `paper_id_not_null` | pass | 0 | 0 blank paper_id |
+| `paper_id_unique` | pass | 0 | 0 duplicate paper_id |
+| `title_not_empty` | pass | 0 | 0 blank titles |
+| `text_for_embedding_not_empty` | pass | 0 | 0 blank text_for_embedding |
+| `summary_min_length` | pass | 0 | 0 rows below 100 characters |
+| `freshness_age_days` | pass | stale_rows=0, unknown_age_rows=0 | 0 rows older than 180 days |
+
+## 4. Freshness
+
+- Fresh: **yes** (threshold 180 days)
+
+| Signal | Value |
+| --- | ---: |
+| `total_rows` | 24 |
+| `latest_published` | 2026-08-01 |
+| `oldest_published` | 2026-02-12 |
+| `fresh_rows` | 24 |
+| `stale_rows` | 0 |
+| `unknown_age_rows` | 0 |
+| `max_age_days` | 175 |
+| `is_fresh` | yes |
+
+## 5. How to reproduce
+
+```bash
+uv run python script/run_phase1.py
+```
+
