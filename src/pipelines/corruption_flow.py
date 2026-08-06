@@ -1,170 +1,183 @@
+# =============================================================================
+# Author: Quan123781 <quannguyen0442@gmail.com>
+# Day 10 lab - Evaluation, Observability, Corruption & Integration
+# =============================================================================
 from __future__ import annotations
 
 import dataclasses
-from datetime import datetime, UTC
-import pandas as pd
+from datetime import UTC, datetime
 from pathlib import Path
 
-from core.config import load_settings
+import pandas as pd
+
+from core.config import Settings, load_settings
 from core.utils import read_json
-from ingestion.crossref import load_raw_records
+from evaluation.metrics import evaluate_pipeline
 from ingestion.cleaning import build_clean_dataframe
 from ingestion.corruption import corrupt_clean_dataframe
-from retrieval.index import LocalEmbeddingIndex
-from evaluation.metrics import evaluate_pipeline
-from observability.quality import run_data_quality_checks, build_freshness_report
+from ingestion.crossref import load_raw_records
+from observability.quality import build_freshness_report, run_data_quality_checks
 from observability.reporting import generate_corruption_report
+from retrieval.index import LocalEmbeddingIndex
+
+METRIC_KEYS = ("retrieval_hit_rate", "mean_token_f1", "judge_accuracy", "mean_judge_score")
+
+
+def require_baseline_artifacts(settings: Settings) -> None:
+    """Phase 2 only means something if phase 1 already produced a baseline to compare to."""
+    required = {
+        "cleaned dataset": settings.paths.clean_json,
+        "frozen test set": settings.paths.eval_testset,
+        "baseline metrics": settings.paths.baseline_metrics,
+        "raw records snapshot": settings.paths.raw_records_json,
+    }
+    missing = [f"{name} ({path})" for name, path in required.items() if not path.exists()]
+    if missing:
+        raise FileNotFoundError(
+            "Baseline artifacts are missing, run script/run_phase1.py first:\n  - "
+            + "\n  - ".join(missing)
+        )
+
+
+def save_dataframe(df: pd.DataFrame, csv_path: Path, json_path: Path) -> None:
+    csv_path.parent.mkdir(parents=True, exist_ok=True)
+    df.to_csv(csv_path, index=False)
+    json_path.parent.mkdir(parents=True, exist_ok=True)
+    df.to_json(json_path, orient="records", indent=2)
+
+
+def evaluation_settings(settings: Settings) -> Settings:
+    """Mirror the provider fallback phase 1 uses so both phases are judged the same way."""
+    if not settings.google_api_key and settings.openai_api_key:
+        print("GOOGLE_API_KEY is empty. Overriding provider to 'openai' for evaluation.")
+        return dataclasses.replace(settings, llm_provider="openai", model_name="gpt-4o-mini")
+    return settings
+
+
+def ground_truth_doc_ids(test_set_path: Path) -> list[str]:
+    test_set = read_json(test_set_path)
+    return sorted({doc_id for item in test_set for doc_id in item["ground_truth_doc_ids"]})
 
 
 def main() -> None:
     print("Loading settings...")
     settings = load_settings()
+    require_baseline_artifacts(settings)
 
-    # --- CP5 Task 1: Verify raw source is intact before corruption ---
-    print("\n--- CP5 Task 1: Raw Source Integrity Check ---")
-    raw_records_path = settings.paths.raw_records_json
-    if not raw_records_path.exists():
-        raise FileNotFoundError(f"Raw records cache not found at {raw_records_path}. Run phase 1 first.")
-    raw_records = load_raw_records(raw_records_path)
-    print(f"Verified: Raw records cache is intact and contains {len(raw_records)} records.")
+    eval_settings = evaluation_settings(settings)
+    test_set_path = settings.paths.eval_testset
+    baseline_metrics = read_json(settings.paths.baseline_metrics)
 
-    # --- CP5 Task 2: Choose target record with clear lineage for repair ---
-    print("\n--- CP5 Task 2: Lineage Target Selection ---")
-    target_paper_id = "10-2118-234689-pa"
-    # Verify target paper exists in raw records
-    target_in_raw = any(r.paper_id == target_paper_id for r in raw_records)
-    print(f"Target selected: '{target_paper_id}' (SafeRAG paper). In raw records: {target_in_raw}")
+    # 1. Load the cleaned baseline dataset. The JSON snapshot keeps list columns intact,
+    #    which the CSV round-trip would flatten into strings.
+    baseline_df = pd.DataFrame(read_json(settings.paths.clean_json))
+    print(f"Loaded baseline cleaned dataset: {len(baseline_df)} rows")
 
-    # --- CP5 Task 3: Ensure no new source fetches are performed ---
-    print("\n--- CP5 Task 3: Fetching Constraint Check ---")
-    print(f"Checking Settings: refresh_source = {settings.refresh_source}")
-    if settings.refresh_source:
-        print("Warning: refresh_source is set to True. Forcing to False to keep evaluation fair.")
-        settings = dataclasses.replace(settings, refresh_source=False)
-    print("Confirmed: Pipeline will read exclusively from cached snapshots.")
+    targets = ground_truth_doc_ids(test_set_path)
+    print(f"Frozen test set references {len(targets)} distinct ground-truth papers")
 
-    # 1. Load baseline metrics and clean baseline dataset
-    print("\nLoading baseline clean data...")
-    clean_json_path = settings.paths.clean_json
-    df_baseline = pd.read_json(clean_json_path)
-    print(f"Loaded baseline clean dataset containing {len(df_baseline)} records.")
-    
-    baseline_metrics_path = settings.paths.baseline_metrics
-    baseline_metrics = read_json(baseline_metrics_path)
+    # 2. Corrupt the cleaned data on purpose, writing the log next to the metrics.
+    print("\n=== Corrupting cleaned dataset ===")
+    corrupted_df = corrupt_clean_dataframe(
+        baseline_df,
+        settings.paths.corruption_log,
+        target_paper_ids=targets,
+    )
+    save_dataframe(
+        corrupted_df,
+        settings.paths.corrupted_clean_csv,
+        settings.paths.corrupted_clean_json,
+    )
+    print(f"Corrupted dataset saved to {settings.paths.corrupted_clean_csv}")
 
-    # 2. Create corrupted dataframe (CP5 Tasks 4 & 5)
-    print("\n--- CP5 Tasks 4 & 5: Corrupting DataFrame & Logging ---")
-    df_corrupted = corrupt_clean_dataframe(df_baseline, settings.paths.corruption_log)
+    # 3. Rebuild the index into its own collection so the baseline stays readable.
+    print("\n=== Rebuilding index on corrupted data ===")
+    corrupted_index = LocalEmbeddingIndex.build(
+        corrupted_df, settings, settings.paths.corrupted_embeddings_json
+    )
+    print(f"Index built with collection: {corrupted_index.collection_name}")
 
-    # --- CP5 Task 6: Validate corrupted dataset against baseline and log ---
-    print("\n--- CP5 Task 6: Verifying Corrupted Dataset Divergence ---")
-    corruption_logs = read_json(settings.paths.corruption_log)
-    print(f"Read {len(corruption_logs)} corruption log actions.")
-    
-    # Assert count changes match drops/duplicates
-    dropped_ids = [log["paper_id"] for log in corruption_logs if log["type"] == "drop_latest"]
-    duplicated_ids = [log["paper_id"] for log in corruption_logs if log["type"] == "duplicate"]
-    
-    # Confirm dropped records are missing from corrupted df
-    for paper_id in dropped_ids:
-        assert paper_id not in df_corrupted["paper_id"].values, f"Dropped record {paper_id} is still in corrupted DF!"
-    print(f"Verified: Latest records {dropped_ids} were successfully dropped.")
-
-    # Confirm duplicate records exist
-    for paper_id in duplicated_ids:
-        matches = df_corrupted[df_corrupted["paper_id"] == paper_id]
-        assert len(matches) > 1, f"Duplicated record {paper_id} was not duplicated!"
-    print(f"Verified: Duplicate records {duplicated_ids} are present.")
-
-    # 3. Save corrupted artifacts
-    print(f"Saving corrupted CSV to {settings.paths.corrupted_clean_csv}")
-    settings.paths.corrupted_clean_csv.parent.mkdir(parents=True, exist_ok=True)
-    df_corrupted.to_csv(settings.paths.corrupted_clean_csv, index=False)
-    
-    print(f"Saving corrupted JSON to {settings.paths.corrupted_clean_json}")
-    settings.paths.corrupted_clean_json.parent.mkdir(parents=True, exist_ok=True)
-    df_corrupted.to_json(settings.paths.corrupted_clean_json, orient="records", indent=2)
-
-    # 4. Rebuild index and evaluate corrupted dataset
-    print("\nBuilding Chroma corrupted index...")
-    index_corrupted = LocalEmbeddingIndex.build(df_corrupted, settings, settings.paths.corrupted_embeddings_json)
-    print(f"Corrupted index built with collection: {index_corrupted.collection_name}")
-
-    print("Evaluating corrupted RAG pipeline...")
-    override_settings = settings
-    if not settings.google_api_key and settings.openai_api_key:
-        override_settings = dataclasses.replace(
-            settings,
-            llm_provider="openai",
-            model_name="gpt-4o-mini"
-        )
-        
-    corrupted_metrics_results = evaluate_pipeline(
-        settings=override_settings,
-        index=index_corrupted,
-        test_set_path=settings.paths.eval_testset,
+    # 4. Evaluate with the same frozen test set: the data is the only variable.
+    print("\n=== Evaluating corrupted state ===")
+    corrupted_bundle = evaluate_pipeline(
+        settings=eval_settings,
+        index=corrupted_index,
+        test_set_path=test_set_path,
         metrics_output_path=settings.paths.corrupted_metrics,
-        answers_output_path=settings.paths.corrupted_answers
+        answers_output_path=settings.paths.corrupted_answers,
     )
-    print(f"Corrupted evaluation metrics: {corrupted_metrics_results.summary}")
+    print(f"Corrupted metrics: {corrupted_bundle.summary}")
 
-    # 5. Run quality checks & freshness report on corrupted dataset
-    print("Running data quality checks on corrupted dataset...")
-    corrupted_quality = run_data_quality_checks(df_corrupted, settings, "corrupted_quality")
-    
-    print("Building freshness report on corrupted dataset...")
-    corrupted_freshness_path = settings.paths.quality_dir / "corrupted_freshness.json"
-    corrupted_freshness = build_freshness_report(df_corrupted, settings, corrupted_freshness_path)
+    corrupted_quality = run_data_quality_checks(corrupted_df, settings, "corrupted_quality")
+    corrupted_freshness = build_freshness_report(
+        corrupted_df, settings, settings.paths.quality_dir / "freshness_report_corrupted.json"
+    )
 
-    # 6. Repair phase: rebuild from cached raw records (CP6)
-    print("\n--- Repair Phase: Restoring Clean Dataset from Source ---")
-    run_date = datetime.now(UTC)
-    df_repaired = build_clean_dataframe(raw_records, run_date)
-    
-    # Save repaired artifacts
-    print(f"Saving repaired CSV to {settings.paths.repaired_clean_csv}")
-    df_repaired.to_csv(settings.paths.repaired_clean_csv, index=False)
-    print(f"Saving repaired JSON to {settings.paths.repaired_clean_json}")
-    df_repaired.to_json(settings.paths.repaired_clean_json, orient="records", indent=2)
+    # 5. Repair from the saved raw snapshot, never by re-fetching the source: a fresh fetch
+    #    would return a different corpus and make the comparison meaningless.
+    print("\n=== Repairing from saved raw records ===")
+    records = load_raw_records(settings.paths.raw_records_json)
+    print(f"Reloaded {len(records)} raw records from {settings.paths.raw_records_json}")
+    repaired_df = build_clean_dataframe(records, datetime.now(UTC))
+    save_dataframe(
+        repaired_df,
+        settings.paths.repaired_clean_csv,
+        settings.paths.repaired_clean_json,
+    )
+    print(f"Repaired dataset saved to {settings.paths.repaired_clean_csv} ({len(repaired_df)} rows)")
 
-    # 7. Rebuild index and evaluate repaired dataset
-    print("\nBuilding Chroma repaired index...")
-    index_repaired = LocalEmbeddingIndex.build(df_repaired, settings, settings.paths.repaired_embeddings_json)
-    print(f"Repaired index built with collection: {index_repaired.collection_name}")
+    print("\n=== Rebuilding index on repaired data ===")
+    repaired_index = LocalEmbeddingIndex.build(
+        repaired_df, settings, settings.paths.repaired_embeddings_json
+    )
+    print(f"Index built with collection: {repaired_index.collection_name}")
 
-    print("Evaluating repaired RAG pipeline...")
-    repaired_metrics_results = evaluate_pipeline(
-        settings=override_settings,
-        index=index_repaired,
-        test_set_path=settings.paths.eval_testset,
+    print("\n=== Evaluating repaired state ===")
+    repaired_bundle = evaluate_pipeline(
+        settings=eval_settings,
+        index=repaired_index,
+        test_set_path=test_set_path,
         metrics_output_path=settings.paths.repaired_metrics,
-        answers_output_path=settings.paths.repaired_answers
+        answers_output_path=settings.paths.repaired_answers,
     )
-    print(f"Repaired evaluation metrics: {repaired_metrics_results.summary}")
+    print(f"Repaired metrics: {repaired_bundle.summary}")
 
-    # Run quality checks & freshness report on repaired dataset
-    print("Running data quality checks on repaired dataset...")
-    repaired_quality = run_data_quality_checks(df_repaired, settings, "repaired_quality")
-    
-    print("Building freshness report on repaired dataset...")
-    repaired_freshness_path = settings.paths.quality_dir / "repaired_freshness.json"
-    repaired_freshness = build_freshness_report(df_repaired, settings, repaired_freshness_path)
+    repaired_quality = run_data_quality_checks(repaired_df, settings, "repaired_quality")
+    repaired_freshness = build_freshness_report(
+        repaired_df, settings, settings.paths.quality_dir / "freshness_report_repaired.json"
+    )
 
-    # 8. Generate comparison report
-    print(f"\nGenerating comparison report at {settings.paths.comparison_report}...")
+    # 6. Comparison report over the three states.
+    print("\n=== Generating comparison report ===")
     generate_corruption_report(
         report_path=settings.paths.comparison_report,
         baseline_metrics=baseline_metrics,
-        corrupted_metrics=corrupted_metrics_results.summary,
-        repaired_metrics=repaired_metrics_results.summary,
+        corrupted_metrics=corrupted_bundle.summary,
+        repaired_metrics=repaired_bundle.summary,
         corrupted_quality=corrupted_quality,
         repaired_quality=repaired_quality,
         corrupted_freshness=corrupted_freshness,
-        repaired_freshness=repaired_freshness
+        repaired_freshness=repaired_freshness,
     )
-    print("Hoàn thành Pipeline Corruption Flow!")
+
+    print("\n--- Baseline / Corrupted / Repaired ---")
+    for key in METRIC_KEYS:
+        base = baseline_metrics.get(key)
+        bad = corrupted_bundle.summary.get(key)
+        fixed = repaired_bundle.summary.get(key)
+        print(f"{key:<20} {base:>8.4f} {bad:>10.4f} {fixed:>10.4f}   delta={bad - base:+.4f}")
+    print(
+        f"{'quality success':<20} {'PASS':>8} "
+        f"{('PASS' if corrupted_quality['success'] else 'FAIL'):>10} "
+        f"{('PASS' if repaired_quality['success'] else 'FAIL'):>10}"
+    )
+    print(
+        f"{'freshness':<20} {'FRESH':>8} "
+        f"{('FRESH' if corrupted_freshness['is_fresh'] else 'STALE'):>10} "
+        f"{('FRESH' if repaired_freshness['is_fresh'] else 'STALE'):>10}"
+    )
+    print("\nHoan thanh Corruption Flow (Phase 2)!")
 
 
 if __name__ == "__main__":
     main()
-

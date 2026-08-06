@@ -6,19 +6,22 @@
 
 | Thông tin         | Nội dung                  |
 | ------------------ | -------------------------- |
-| Khóa/Lớp         | [K3 hoặc K4]              |
+| Khóa/Lớp         | K3                         |
 | Tên nhóm         | [Tên hoặc mã nhóm]     |
-| Repository         | [Đường dẫn repository] |
+| Repository         | https://github.com/DucDung-1107/K3_Day10_Data-Pipeline-Data-Observability |
 | Ngày hoàn thành | [YYYY-MM-DD]               |
 
 ### Thành viên và phân công
 
 | STT | Họ và tên | MSSV | Vai trò chính | Module/deliverable sở hữu |
 | --: | --- | --- | --- | --- |
-| 1 | [Họ tên] | [MSSV] | [Vai trò] | [File, hàm hoặc artifact] |
-| 2 | [Họ tên] | [MSSV] | [Vai trò] | [File, hàm hoặc artifact] |
-| 3 | [Họ tên] | [MSSV] | [Vai trò] | [File, hàm hoặc artifact] |
-| 4 | [Nếu có] | [MSSV] | [Vai trò] | [File, hàm hoặc artifact] |
+| 1 | [Họ tên — GitHub `phuonghue1395`] | [MSSV] | Ingestion, Cleaning & Evaluation/Observability | `src/ingestion/crossref.py`, `src/ingestion/cleaning.py`, `src/evaluation/testset.py`, `src/observability/quality.py`, `src/observability/reporting.py`, `script/validate_clean_data.py`, `script/smoke_test_index.py` |
+| 2 | Đặng Đức Hòa | [MSSV] | Pipeline integrator | `src/pipelines/phase1.py` — điều phối raw → clean → index → test set → evaluate → quality/freshness → report |
+| 3 | [Họ tên — GitHub `DucDung-1107`] | [MSSV] | Chủ repository | Quản lý repo nhóm, review và merge |
+| 4 | [Họ tên của bạn] | [MSSV] | Corruption & Comparison | `src/ingestion/corruption.py`, `src/pipelines/corruption_flow.py`, `tests/test_role4_evaluation_observability.py` |
+
+> Phân công ở trên được đối chiếu với lịch sử commit thực tế (`git log --name-only`), không phải bảng phân vai dự kiến ban đầu.
+> Cần điền nốt: MSSV của cả bốn thành viên, họ tên đầy đủ của STT 1/3/4, và tên nhóm.
 
 ## 2. Tóm tắt kết quả
 
@@ -57,13 +60,13 @@ Crossref API
 
 | Khối             | Input          | Xử lý chính             | Output/artifact          | Owner          |
 | ----------------- | -------------- | -------------------------- | ------------------------ | -------------- |
-| Ingestion         | [Nguồn/input] | [Fetch, retry, parse...]   | [Đường dẫn artifact] | [Thành viên] |
-| Cleaning          | [Input]        | [Các quy tắc chính]     | [Đường dẫn artifact] | [Thành viên] |
-| Embedding/index   | [Input]        | [Model/index config]       | [Đường dẫn artifact] | [Thành viên] |
-| Evaluation        | [Input]        | [Test set và metrics]     | [Đường dẫn artifact] | [Thành viên] |
-| Observability     | [Input]        | [Quality/freshness checks] | [Đường dẫn artifact] | [Thành viên] |
-| Corruption/repair | [Input]        | [Corruption và repair]    | [Đường dẫn artifact] | [Thành viên] |
-| Orchestration     | [Input]        | [Thứ tự chạy]           | [Reports/metrics]        | [Thành viên] |
+| Ingestion         | Crossref REST API, query/filter trong `src/core/config.py` | Fetch có retry/backoff, parse payload thành `PaperRecord` | `data/raw/crossref_response.json`, `data/raw/crossref_records.json` | STT 1 |
+| Cleaning          | `data/raw/crossref_records.json` | Chuẩn hóa title/summary/authors/categories, dedupe theo `paper_id`, tính `age_days`, dựng `text_for_embedding` | `data/clean/papers_clean.csv`, `data/clean/papers_clean.json` (24 dòng) | STT 1 |
+| Embedding/index   | Cleaned dataframe | MiniLM `all-MiniLM-L6-v2` (384 chiều) + Chroma collection `papers-baseline`, cosine | `data/embeddings/papers_embeddings.json`, `data/chroma/` | Starter code, tích hợp bởi STT 2 |
+| Evaluation        | Cleaned dataframe + baseline index | 24 câu hỏi (6 paper × 4 loại), chấm `retrieval_hit_rate`, token F1, LLM judge | `data/eval/test_set.json`, `data/results/baseline_metrics.json`, `data/results/baseline_answers.json` | STT 1 |
+| Observability     | Cleaned dataframe | 6 quality check (rows, title, summary, duplicate, short summary, negative age) + freshness theo ngưỡng 180 ngày | `data/quality/baseline_quality.json`, `data/quality/freshness_report.json`, `data/reports/phase1_report.md` | STT 1 |
+| Corruption/repair | `data/clean/papers_clean.csv` + `data/raw/crossref_records.json` | **Chưa triển khai** — còn `TODO(student)` | `data/clean/papers_clean_corrupted.csv`, `data/results/corruption_log.json`, `data/reports/corruption_report.md` | STT 4 |
+| Orchestration     | Settings + toàn bộ khối trên | `phase1.py` đã chạy end-to-end; `corruption_flow.py` **chưa triển khai** | `data/reports/phase1_report.md` | STT 2 (phase 1), STT 4 (phase 2) |
 
 ## 4. Cách tái hiện kết quả
 

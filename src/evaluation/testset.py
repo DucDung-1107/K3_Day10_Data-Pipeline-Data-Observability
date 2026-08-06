@@ -1,71 +1,131 @@
+# =============================================================================
+# Author: Quan123781 <quannguyen0442@gmail.com>
+# Day 10 lab - Evaluation, Observability, Corruption & Integration
+# =============================================================================
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any
+
 import pandas as pd
 
-from core.utils import write_json, first_sentence
+from core.utils import first_sentence, normalize_whitespace, safe_slug, write_json
+
+REQUIRED_COLUMNS = (
+    "paper_id",
+    "title",
+    "summary",
+    "authors_joined",
+    "categories_joined",
+    "published",
+)
+
+# `retrieval.qa._extract_answer` routes a question to a metadata field by matching these
+# phrases against the lowercased question. A question must contain exactly one of them
+# (or none, for the summary fallback), otherwise the extracted answer is taken from a
+# different field than the ground truth recorded here and every score becomes noise.
+ROUTER_PHRASES = (
+    "who authored",
+    "list the authors",
+    "when was",
+    "publication date",
+    "published on",
+    "what categories",
+)
+
+QUESTION_TEMPLATES: dict[str, str] = {
+    "summary": "What is the paper '{title}' about?",
+    "authors": "Who authored the paper '{title}'?",
+    "date": "When was the paper '{title}' published?",
+    "categories": "What categories are assigned to the paper '{title}'?",
+}
 
 
-def build_test_set(df: pd.DataFrame, output_path) -> list[dict[str, Any]]:
-    """Build evaluation test set from the cleaned dataframe.
+def _text(value: Any) -> str:
+    if value is None:
+        return ""
+    return normalize_whitespace(str(value))
 
-    Generates 4 questions per paper (summary, authors, date, categories)
-    aligned with retrieval/qa.py's answer extraction patterns.
+
+def _ground_truth(question_type: str, row: dict[str, Any]) -> str:
+    """Mirror `retrieval.qa._extract_answer` so a correct retrieval scores a perfect match."""
+    if question_type == "authors":
+        return _text(row["authors_joined"])
+    if question_type == "date":
+        return _text(row["published"])
+    if question_type == "categories":
+        return _text(row["categories_joined"])
+    return first_sentence(str(row["summary"]))
+
+
+def _is_eligible(row: dict[str, Any]) -> bool:
+    if any(not _text(row.get(column)) for column in REQUIRED_COLUMNS):
+        return False
+
+    title = _text(row["title"])
+    # `answer_question` extracts the exact-lookup key with r"'([^']+)'", so an apostrophe
+    # inside the title would truncate the key and break the lookup.
+    if "'" in title:
+        return False
+    return not any(phrase in title.lower() for phrase in ROUTER_PHRASES)
+
+
+def _select_papers(df: pd.DataFrame, max_papers: int) -> list[dict[str, Any]]:
+    seen_titles: set[str] = set()
+    eligible: list[dict[str, Any]] = []
+    for row in df.to_dict(orient="records"):
+        if not _is_eligible(row):
+            continue
+        title_key = _text(row["title"]).lower()
+        if title_key in seen_titles:
+            continue
+        seen_titles.add(title_key)
+        eligible.append(row)
+
+    # Sort then sample at a fixed stride: the same cleaned dataset always yields the same
+    # test set, which is what makes baseline/corrupted/repaired comparable.
+    eligible.sort(key=lambda row: str(row["paper_id"]))
+    if len(eligible) <= max_papers:
+        return eligible
+    stride = len(eligible) / max_papers
+    return [eligible[int(index * stride)] for index in range(max_papers)]
+
+
+def build_test_set(df: pd.DataFrame, output_path, max_papers: int = 6) -> list[dict[str, Any]]:
+    """Build the evaluation set from the cleaned dataframe and persist it as JSON.
+
+    The test set is written once and reused unchanged for the baseline, corrupted and
+    repaired runs; regenerating it between runs would invalidate every comparison.
     """
-    if len(df) < 5:
-        raise ValueError("Dataframe must have at least 5 records to generate a representative test set.")
+    missing_columns = [column for column in REQUIRED_COLUMNS if column not in df.columns]
+    if missing_columns:
+        raise ValueError(f"Cleaned dataframe is missing required columns: {', '.join(missing_columns)}")
+    if len(df) < 4:
+        raise ValueError(f"Need at least 4 cleaned documents to build a test set, got {len(df)}.")
 
-    # Select the first 6 papers to generate 24 questions (avoids high LLM costs while remaining representative)
-    selected_papers = df.head(6).to_dict(orient="records")
-    test_set = []
-    question_counter = 1
+    papers = _select_papers(df, max_papers)
+    if not papers:
+        raise ValueError(
+            "No cleaned row is eligible for the test set. Every row is missing one of "
+            f"{', '.join(REQUIRED_COLUMNS)} or has a title that breaks exact lookup."
+        )
 
-    for row in selected_papers:
-        title = row["title"]
-        paper_id = row["paper_id"]
+    test_set: list[dict[str, Any]] = []
+    for row in papers:
+        paper_id = str(row["paper_id"])
+        title = _text(row["title"])
+        for question_type, template in QUESTION_TEMPLATES.items():
+            ground_truth = _ground_truth(question_type, row)
+            if not ground_truth:
+                continue
+            test_set.append(
+                {
+                    "id": f"{question_type}-{safe_slug(paper_id)}",
+                    "question_type": question_type,
+                    "question": template.format(title=title),
+                    "ground_truth": ground_truth,
+                    "ground_truth_doc_ids": [paper_id],
+                }
+            )
 
-        # 1. Summary question (does not trigger specific keywords -> falls back to first_sentence of summary)
-        test_set.append({
-            "id": f"Q{question_counter:03d}",
-            "question_type": "summary",
-            "question": f"What is the summary of the paper '{title}'?",
-            "ground_truth": first_sentence(row["summary"]),
-            "ground_truth_doc_ids": [paper_id]
-        })
-        question_counter += 1
-
-        # 2. Authors question (triggers "who authored" keyword in qa.py -> retrieves authors_joined)
-        test_set.append({
-            "id": f"Q{question_counter:03d}",
-            "question_type": "authors",
-            "question": f"Who authored the paper '{title}'?",
-            "ground_truth": row["authors_joined"],
-            "ground_truth_doc_ids": [paper_id]
-        })
-        question_counter += 1
-
-        # 3. Date question (triggers "when was" keyword in qa.py -> retrieves published date)
-        test_set.append({
-            "id": f"Q{question_counter:03d}",
-            "question_type": "date",
-            "question": f"When was the paper '{title}' published?",
-            "ground_truth": row["published"],
-            "ground_truth_doc_ids": [paper_id]
-        })
-        question_counter += 1
-
-        # 4. Categories question (triggers "what categories" keyword in qa.py -> retrieves categories_joined)
-        test_set.append({
-            "id": f"Q{question_counter:03d}",
-            "question_type": "categories",
-            "question": f"What categories does the paper '{title}' belong to?",
-            "ground_truth": row["categories_joined"],
-            "ground_truth_doc_ids": [paper_id]
-        })
-        question_counter += 1
-
-    write_json(Path(output_path), test_set)
-    print(f"Generated {len(test_set)} test questions and saved to {output_path}")
+    write_json(output_path, test_set)
     return test_set
-
