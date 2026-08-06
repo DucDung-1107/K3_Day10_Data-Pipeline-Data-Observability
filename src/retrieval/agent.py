@@ -2,12 +2,16 @@ from __future__ import annotations
 
 from typing import Any
 
-from langchain.agents import create_agent
 from langchain.tools import tool
 
 from core.config import Settings
 from retrieval.index import LocalEmbeddingIndex
 from retrieval.llm import build_llm
+
+
+def create_agent(model, tools, system_prompt=None, name="agent", **kwargs):
+    from langgraph.prebuilt import create_react_agent
+    return create_react_agent(model=model, tools=tools, state_modifier=system_prompt, name=name, **kwargs)
 
 
 def build_agent(settings: Settings, index: LocalEmbeddingIndex):

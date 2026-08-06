@@ -46,6 +46,9 @@ def parse_crossref_payload(payload: dict) -> list[PaperRecord]:
         title = ""
         if title_list and isinstance(title_list, list):
             title = str(title_list[0]).strip()
+        if title:
+            title = re.sub(r"<[^>]+>", "", title)
+            title = re.sub(r"\s+", " ", title).strip()
         if not title:
             continue
 

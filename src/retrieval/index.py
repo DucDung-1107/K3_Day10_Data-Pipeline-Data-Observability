@@ -45,6 +45,14 @@ class LocalEmbeddingIndex:
         records = df.to_dict(orient="records")
         documents: list[dict[str, Any]] = []
         for index, row in enumerate(records):
+            authors_list = row.get("authors")
+            if isinstance(authors_list, list) and len(authors_list) > 0:
+                owner = str(authors_list[0]).strip()
+            elif isinstance(row.get("authors_joined"), str) and row.get("authors_joined").strip():
+                owner = row.get("authors_joined").split(",")[0].strip()
+            else:
+                owner = "Unknown"
+            
             documents.append(
                 {
                     "record_id": f"{row['paper_id']}::{index}",
@@ -60,6 +68,9 @@ class LocalEmbeddingIndex:
                         "summary": row["summary"],
                         "abs_url": row["abs_url"],
                         "pdf_url": row["pdf_url"],
+                        "eff_date": row["published"],
+                        "owner": owner,
+                        "src_url": row["abs_url"],
                     },
                 }
             )

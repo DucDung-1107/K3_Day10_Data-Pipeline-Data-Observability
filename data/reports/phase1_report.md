@@ -16,15 +16,15 @@ This report details the execution and validation of the baseline RAG data pipeli
 
 | Metric | Value | Interpretation |
 | --- | --- | --- |
-| **Retrieval Hit Rate** | 1.0000 | Proportion of queries where the ground truth document was retrieved |
-| **Mean Token F1** | 1.0000 | Word-level overlap between predicted and reference answers |
-| **Judge Accuracy** | 1.0000 | Proportion of answers judged correct (materially correct) |
-| **Mean Judge Score** | 5.0000 | Average quality score (1 to 5) given by the evaluator |
+| **Retrieval Hit Rate** | 0.8333 | Proportion of queries where the ground truth document was retrieved |
+| **Mean Token F1** | 0.8824 | Word-level overlap between predicted and reference answers |
+| **Judge Accuracy** | 0.8750 | Proportion of answers judged correct (materially correct) |
+| **Mean Judge Score** | 4.5417 | Average quality score (1 to 5) given by the evaluator |
 
 ## 3. Data Quality Validation
 
 - **Overall Quality Success**: `PASS`
-- **Timestamp**: `2026-08-06T03:27:38.344228+00:00`
+- **Timestamp**: `2026-08-06T03:41:35.860286+00:00`
 
 ### Checks Executed:
 - **Has Rows**: `PASS` (Total: 24)
