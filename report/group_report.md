@@ -18,7 +18,7 @@
 | 1 | [Họ tên — GitHub `phuonghue1395`] | [MSSV] | Ingestion, Cleaning & Evaluation/Observability | `src/ingestion/crossref.py`, `src/ingestion/cleaning.py`, `src/evaluation/testset.py`, `src/observability/quality.py`, `src/observability/reporting.py`, `script/validate_clean_data.py`, `script/smoke_test_index.py` |
 | 2 | Đặng Đức Hòa | [MSSV] | Pipeline integrator | `src/pipelines/phase1.py` — điều phối raw → clean → index → test set → evaluate → quality/freshness → report |
 | 3 | [Họ tên — GitHub `DucDung-1107`] | [MSSV] | Chủ repository | Quản lý repo nhóm, review và merge |
-| 4 | [Họ tên của bạn] | [MSSV] | Corruption & Comparison | `src/ingestion/corruption.py`, `src/pipelines/corruption_flow.py`, `tests/test_role4_evaluation_observability.py` |
+| 4 | Quan_01863 | [MSSV] | Corruption & Comparison | `src/ingestion/corruption.py`, `src/pipelines/corruption_flow.py`, `tests/test_role4_evaluation_observability.py` |
 
 > Phân công ở trên được đối chiếu với lịch sử commit thực tế (`git log --name-only`), không phải bảng phân vai dự kiến ban đầu.
 > Cần điền nốt: MSSV của cả bốn thành viên, họ tên đầy đủ của STT 1/3/4, và tên nhóm.
