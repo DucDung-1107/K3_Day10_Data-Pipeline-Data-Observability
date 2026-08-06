@@ -19,7 +19,6 @@
 | 2 | [Họ tên] | [MSSV] | [Vai trò] | [File, hàm hoặc artifact] |
 | 3 | [Họ tên] | [MSSV] | [Vai trò] | [File, hàm hoặc artifact] |
 | 4 | [Nếu có] | [MSSV] | [Vai trò] | [File, hàm hoặc artifact] |
-| 5 | [Nếu có] | [MSSV] | [Vai trò] | [File, hàm hoặc artifact] |
 
 ## 2. Tóm tắt kết quả
 
