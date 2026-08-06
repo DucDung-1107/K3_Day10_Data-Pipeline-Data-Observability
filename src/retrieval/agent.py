@@ -11,7 +11,7 @@ from retrieval.llm import build_llm
 
 def create_agent(model, tools, system_prompt=None, name="agent", **kwargs):
     from langgraph.prebuilt import create_react_agent
-    return create_react_agent(model=model, tools=tools, state_modifier=system_prompt, name=name, **kwargs)
+    return create_react_agent(model=model, tools=tools, prompt=system_prompt, name=name, **kwargs)
 
 
 def build_agent(settings: Settings, index: LocalEmbeddingIndex):
