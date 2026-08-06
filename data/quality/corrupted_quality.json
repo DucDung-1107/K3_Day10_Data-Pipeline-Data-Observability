@@ -1,0 +1,21 @@
+{
+  "report_name": "corrupted_quality",
+  "timestamp": "2026-08-06T03:56:08.607731+00:00",
+  "success": false,
+  "metrics": {
+    "total_rows": 23,
+    "missing_titles": 0,
+    "missing_summaries": 2,
+    "duplicate_ids": 2,
+    "short_summaries": 2,
+    "negative_ages": 0
+  },
+  "checks": {
+    "has_rows": true,
+    "no_missing_titles": true,
+    "no_missing_summaries": false,
+    "no_duplicates": false,
+    "no_short_summaries": false,
+    "no_negative_ages": true
+  }
+}

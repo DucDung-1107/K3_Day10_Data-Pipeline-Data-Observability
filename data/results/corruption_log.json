@@ -1,0 +1,130 @@
+[
+  {
+    "paper_id": "10-2118-234689-pa",
+    "type": "drop_latest",
+    "parameter": {
+      "original_title": "SafeRAG: A Large-Language-Model-Based Multistage Retrieval-Augmented Framework for Oil and Gas Safety Report Generation",
+      "original_published": "2026-08-01"
+    },
+    "before_count": 24,
+    "after_count": 21
+  },
+  {
+    "paper_id": "10-1111-exsy-70341",
+    "type": "drop_latest",
+    "parameter": {
+      "original_title": "Hi\u2010\n                    <scp>RAG</scp>\n                    : A Hierarchical Retrieval\u2010Augmented Generation Framework for Scalable and Generalisable Tool Selection in Large Language Model Agents",
+      "original_published": "2026-08-01"
+    },
+    "before_count": 24,
+    "after_count": 21
+  },
+  {
+    "paper_id": "10-1007-s10278-026-02086-9",
+    "type": "drop_latest",
+    "parameter": {
+      "original_title": "JADE-Plus: A Multimodal Agentic Retrieval-Augmented Generation Large Language Framework for Diagnostic Support in Jawbone Lesions: Development and Technical Validation Study",
+      "original_published": "2026-07-13"
+    },
+    "before_count": 24,
+    "after_count": 21
+  },
+  {
+    "paper_id": "10-21203-rs-3-rs-10178277-v1",
+    "type": "blank_summary",
+    "parameter": {
+      "original_summary_len": 1945,
+      "new_summary": ""
+    },
+    "before_count": 21,
+    "after_count": 21
+  },
+  {
+    "paper_id": "10-2196-preprints-106157",
+    "type": "blank_summary",
+    "parameter": {
+      "original_summary_len": 1765,
+      "new_summary": ""
+    },
+    "before_count": 21,
+    "after_count": 21
+  },
+  {
+    "paper_id": "10-3390-buildings16132637",
+    "type": "inject_noise",
+    "parameter": {
+      "original_len": 2207,
+      "noise_injected": " [CORRUPTED_NOISE_ERROR_404_GARBAGE]  [CORRUPTED_NOISE_ERROR_404_GARBAGE]  [CORRUPTED_NOISE_ERROR_404_GARBAGE] "
+    },
+    "before_count": 21,
+    "after_count": 21
+  },
+  {
+    "paper_id": "10-21079-11681-50309",
+    "type": "inject_noise",
+    "parameter": {
+      "original_len": 834,
+      "noise_injected": " [CORRUPTED_NOISE_ERROR_404_GARBAGE]  [CORRUPTED_NOISE_ERROR_404_GARBAGE]  [CORRUPTED_NOISE_ERROR_404_GARBAGE] "
+    },
+    "before_count": 21,
+    "after_count": 21
+  },
+  {
+    "paper_id": "10-63646-kpqm1958",
+    "type": "truncate_title",
+    "parameter": {
+      "original_title": "The Age of Autonomous Agents: A Bibliometric Review of Agentic AI Architectures, Applications, and Emerging Challenges",
+      "new_title": "The Age of..."
+    },
+    "before_count": 21,
+    "after_count": 21
+  },
+  {
+    "paper_id": "10-47576-2949-1894-2026-7-7-023",
+    "type": "truncate_title",
+    "parameter": {
+      "original_title": "\u0421\u043d\u0438\u0436\u0435\u043d\u0438\u0435 \u0440\u0438\u0441\u043a\u043e\u0432 \u043f\u0440\u0438\u043c\u0435\u043d\u0435\u043d\u0438\u044f LLM (Large Language Model) \u0432 \u0441\u0444\u0435\u0440\u0435 \u044d\u043a\u043e\u043d\u043e\u043c\u0438\u0447\u0435\u0441\u043a\u043e\u0439 \u0431\u0435\u0437\u043e\u043f\u0430\u0441\u043d\u043e\u0441\u0442\u0438 \u043f\u0440\u0435\u0434\u043f\u0440\u0438\u044f\u0442\u0438\u0439 \u043c\u043e\u043b\u043e\u0447\u043d\u043e\u0439 \u043f\u0440\u043e\u043c\u044b\u0448\u043b\u0435\u043d\u043d\u043e\u0441\u0442\u0438 \u043d\u0430 \u043e\u0441\u043d\u043e\u0432\u0435 \u043f\u043e\u0434\u0445\u043e\u0434\u0430 RAG (Retrieval-Augmented Generation)",
+      "new_title": "\u0421\u043d\u0438\u0436\u0435\u043d\u0438\u0435 \u0440..."
+    },
+    "before_count": 21,
+    "after_count": 21
+  },
+  {
+    "paper_id": "10-21203-rs-3-rs-10012178-v1",
+    "type": "stale_date",
+    "parameter": {
+      "original_date": "2026-06-15",
+      "new_date": "2020-01-01"
+    },
+    "before_count": 21,
+    "after_count": 21
+  },
+  {
+    "paper_id": "10-21203-rs-3-rs-9882260-v1",
+    "type": "stale_date",
+    "parameter": {
+      "original_date": "2026-06-02",
+      "new_date": "2020-01-01"
+    },
+    "before_count": 21,
+    "after_count": 21
+  },
+  {
+    "paper_id": "10-52060-juptik-v4i1-4318",
+    "type": "duplicate",
+    "parameter": {
+      "title": "Chatbot Hybrid Fatwa MUI Menggunakan Retrieval Augmented Generation dan Large Language Model"
+    },
+    "before_count": 21,
+    "after_count": 23
+  },
+  {
+    "paper_id": "10-54254-2753-8818-2026-dl34055",
+    "type": "duplicate",
+    "parameter": {
+      "title": "Hallucination in Large Language Models and Retrieval-Augmented Generation: Mechanisms, Mitigation, and Evaluation"
+    },
+    "before_count": 21,
+    "after_count": 23
+  }
+]
