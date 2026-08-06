@@ -315,7 +315,7 @@
     "judge": {
       "score": 5,
       "correct": true,
-      "reasoning": "The model answer matches the reference answer exactly, providing the correct publication date."
+      "reasoning": "The model answer matches the reference answer exactly, indicating it is materially correct."
     }
   },
   {
