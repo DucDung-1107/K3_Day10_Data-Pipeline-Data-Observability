@@ -7,18 +7,18 @@
 | Thông tin         | Nội dung                  |
 | ------------------ | -------------------------- |
 | Khóa/Lớp         | K3                         |
-| Tên nhóm         | [Tên hoặc mã nhóm]     |
+| Tên nhóm         | E1                         |
 | Repository         | https://github.com/DucDung-1107/K3_Day10_Data-Pipeline-Data-Observability |
-| Ngày hoàn thành | [YYYY-MM-DD]               |
+| Ngày hoàn thành | 2026-08-06                 |
 
 ### Thành viên và phân công
 
 | STT | Họ và tên | MSSV | Vai trò chính | Module/deliverable sở hữu |
 | --: | --- | --- | --- | --- |
-| 1 | [Họ tên — GitHub `phuonghue1395`] | [MSSV] | Ingestion, Cleaning & Evaluation/Observability | `src/ingestion/crossref.py`, `src/ingestion/cleaning.py`, `src/evaluation/testset.py`, `src/observability/quality.py`, `src/observability/reporting.py`, `script/validate_clean_data.py`, `script/smoke_test_index.py` |
+| 1 | Lăng Thị Phương Huế | 2A202601915 | Ingestion, Cleaning & Evaluation/Observability | `src/ingestion/crossref.py`, `src/ingestion/cleaning.py`, `src/evaluation/testset.py`, `src/observability/quality.py`, `src/observability/reporting.py`, `script/validate_clean_data.py`, `script/smoke_test_index.py` |
 | 2 | Đặng Đức Hòa | [MSSV] | Pipeline integrator | `src/pipelines/phase1.py` — điều phối raw → clean → index → test set → evaluate → quality/freshness → report |
 | 3 | [Họ tên — GitHub `DucDung-1107`] | [MSSV] | Chủ repository | Quản lý repo nhóm, review và merge |
-| 4 | Quan_01863 | [MSSV] | Corruption & Comparison | `src/ingestion/corruption.py`, `src/pipelines/corruption_flow.py`, `tests/test_role4_evaluation_observability.py` |
+| 4 | Nguyễn Hải Quân | 2A202601863 | Corruption & Comparison | `src/ingestion/corruption.py`, `src/pipelines/corruption_flow.py`, `tests/test_role4_evaluation_observability.py` |
 
 > Phân công ở trên được đối chiếu với lịch sử commit thực tế (`git log --name-only`), không phải bảng phân vai dự kiến ban đầu.
 > Cần điền nốt: MSSV của cả bốn thành viên, họ tên đầy đủ của STT 1/3/4, và tên nhóm.
@@ -261,7 +261,7 @@ Repair chạy lại đúng `build_clean_dataframe` trên `data/raw/crossref_reco
 | ------------------------ | -------: | --------: | -------: | -----------------------: | --------------: | ------------ |
 | `retrieval_hit_rate`   | 1.0000 | 0.6667 | 1.0000 | −0.3333 | 100% | 8/24 câu trượt vì document bị xóa khỏi index |
 | `mean_token_f1`        | 1.0000 | 0.6737 | 1.0000 | −0.3263 | 100% | Trượt retrieval kéo theo câu trả lời lấy từ document sai |
-| `judge_accuracy`       | 0.9583 | 0.7083 | 0.9583 | −0.2500 | 100% | 6 câu bị judge đánh là sai bản chất |
+| `judge_accuracy`       | 0.9583 | 0.7083 | 0.9583 | −0.2500 | 100% | Số câu bị judge chấm sai tăng từ 1 lên 7 trên tổng 24 |
 | `mean_judge_score`     | 4.9167 | 3.9167 | 4.9167 | −1.0000 | 100% | Mất trọn 1 điểm trên thang 5 |
 | Quality checks pass/fail | PASS 8/8 | FAIL 5/8 | PASS 8/8 | 3 check chuyển sang FAIL | 100% | FAIL ở `paper_id_unique`, `summary_min_length`, `freshness_age_days` |
 | Freshness status         | FRESH | STALE | FRESH | 0 → 2 dòng stale | 100% | Ngày cũ nhất tụt từ 2026-02-12 xuống 2000-01-01 |

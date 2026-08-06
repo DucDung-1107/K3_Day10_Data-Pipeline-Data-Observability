@@ -4,10 +4,10 @@
 
 | Thông tin         | Nội dung                  |
 | ------------------ | -------------------------- |
-| Họ và tên       | [Điền họ tên đầy đủ] |
-| MSSV               | [Điền MSSV] |
+| Họ và tên       | Nguyễn Hải Quân |
+| MSSV               | 2A202601863 |
 | Khóa/Lớp         | K3 |
-| Tên nhóm         | [Điền tên nhóm] |
+| Tên nhóm         | E1 |
 | Vai trò chính    | Evaluation, Observability, Corruption & Integration |
 | Repository         | https://github.com/DucDung-1107/K3_Day10_Data-Pipeline-Data-Observability |
 | Ngày hoàn thành | 2026-08-06 |
@@ -109,17 +109,25 @@ python -m pytest tests/ -q
 
 ## 7. Hiểu biết về luồng end-to-end
 
-> **Phần này bạn tự viết bằng lời của mình.** Báo cáo có dòng cam kết "phản ánh đúng mức hiểu của tôi", nên đây phải là chữ của bạn. Năm câu hỏi cần trả lời:
+**1. Dữ liệu đi từ Crossref đến vector index như thế nào?**
 
-1. Dữ liệu đi từ Crossref đến vector index như thế nào?
-2. Evaluation set và ground-truth document IDs dùng để đo retrieval/answer quality ra sao?
-3. Quality checks khác freshness monitoring ở điểm nào trong bài lab?
-4. Vì sao phải dùng cùng test set cho baseline, corrupted và repaired?
-5. Repair được xem là thành công dựa trên artifact và metric nào?
+`fetch_source_records` gọi Crossref REST API với query và filter lấy từ `Settings`, lưu nguyên response HTTP vào `data/raw/crossref_response.json` rồi parse thành danh sách `PaperRecord` lưu tiếp vào `crossref_records.json`. Hai file này là điểm khôi phục: mọi bước sau đều dựng lại được từ đây mà không cần gọi API lần nữa. `build_clean_dataframe` nhận danh sách record đó, loại bản ghi thiếu tiêu đề hoặc summary dưới 100 ký tự, chuẩn hóa tác giả và chủ đề thành chuỗi, parse ngày xuất bản để tính `age_days`, khử trùng theo `paper_id`, rồi ghép `text_for_embedding` theo khuôn `Title / Authors / Categories / Summary`. `LocalEmbeddingIndex.build` mã hóa đúng cột đó bằng MiniLM thành vector 384 chiều, nạp vào một collection ChromaDB riêng kèm metadata, và ghi manifest ra `data/embeddings/`. Điểm quan trọng: mỗi trạng thái dùng một collection riêng (`papers-baseline`, `papers-corrupted`, `papers-repaired`) nên index cũ không bị ghi đè.
 
-**Câu trả lời:**
+**2. Evaluation set và ground-truth document IDs dùng để đo retrieval/answer quality ra sao?**
 
-[Viết câu trả lời tại đây.]
+Mỗi mẫu trong test set gồm câu hỏi, `ground_truth` và `ground_truth_doc_ids`. Khi đánh giá, agent lấy top-4 document và trả lời; evaluator so danh sách `paper_id` lấy được với `ground_truth_doc_ids` — trùng ít nhất một là tính `retrieval_hit`. Đây là thước đo tầng **tìm kiếm**: nó chỉ hỏi "có lấy đúng tài liệu không", không quan tâm câu trả lời. Sau đó `ground_truth` được đem so với câu trả lời theo hai cách: token F1 đo mức trùng từ vựng, còn LLM judge chấm 1–5 và phán đúng/sai về bản chất. Đây là thước đo tầng **trả lời**. Tách hai tầng cho phép chỉ ra lỗi nằm ở đâu: hit rate tụt nghĩa là retrieval hỏng, còn hit rate giữ nguyên mà token F1 tụt nghĩa là tài liệu vẫn tìm ra được nhưng nội dung bên trong đã hỏng.
+
+**3. Quality checks khác freshness monitoring ở điểm nào?**
+
+Quality check hỏi "dữ liệu có đúng hình dạng không" — đủ cột, `paper_id` không rỗng và không trùng, tiêu đề không rỗng, summary đủ dài. Freshness hỏi "dữ liệu có còn kịp thời không" — so `age_days` với ngưỡng 180 ngày. Khác biệt về bản chất: một bản ghi có thể hoàn toàn hợp lệ về cấu trúc nhưng đã cũ ba năm, và ngược lại một bản ghi vừa xuất bản hôm qua vẫn có thể rỗng summary. Trong thí nghiệm này hai tín hiệu bắt hai loại lỗi khác nhau: `blank_summary` và `duplicate_rows` làm quality FAIL, còn `stale_published_date` chỉ freshness bắt được.
+
+**4. Vì sao phải dùng cùng test set cho baseline, corrupted và repaired?**
+
+Vì thí nghiệm chỉ có nghĩa khi **biến duy nhất thay đổi là dữ liệu**. Nếu sinh lại test set cho từng trạng thái thì câu hỏi và đáp án chuẩn cũng đổi theo, và khi metric tụt sẽ không phân biệt được là do dữ liệu hỏng hay do bộ câu hỏi mới khó hơn. Cùng lý do đó, ba lần chạy phải dùng chung evaluator, chung `top_k` và chung LLM judge. `generate_corruption_report` in cảnh báo nếu ba lần chạy có số `samples` khác nhau, vì đó là dấu hiệu test set đã bị đổi giữa chừng.
+
+**5. Repair được xem là thành công dựa trên artifact và metric nào?**
+
+Dựa trên bốn bằng chứng cùng lúc, không phải một. Thứ nhất, `data/clean/papers_clean_repaired.csv` quay lại đủ 24 dòng. Thứ hai, `data/quality/repaired_quality.json` trở lại PASS 8/8 và `freshness_report_repaired.json` trở lại FRESH. Thứ ba, `data/results/repaired_metrics.json` khớp đúng baseline ở cả bốn chỉ số — 1.0000 / 1.0000 / 0.9583 / 4.9167. Thứ tư, và quan trọng nhất về mặt phương pháp: repair được thực hiện bằng cách chạy lại `build_clean_dataframe` trên raw snapshot, chứ không sửa tay dataset hỏng. Nếu chỉ nhìn metric mà không nhìn cách repair thì không phân biệt được phục hồi thật với việc ghi đè số liệu cho đẹp.
 
 ## 8. Phân tích kết quả
 
@@ -149,13 +157,13 @@ Kỳ vọng ban đầu là mọi corruption đều để lại dấu vết trong
 
 ## 9. Điều học được và hướng cải thiện
 
-> **Phần này bạn tự viết.**
-
 ### Ba điều quan trọng nhất
 
-1. [Điều học được về data pipeline.]
-2. [Điều học được về data quality/observability.]
-3. [Điều học được về ảnh hưởng của data đến RAG agent.]
+1. **Về data pipeline — raw snapshot là thứ quyết định pipeline có sửa được hay không.** Lúc đầu tôi xem việc lưu `crossref_response.json` chỉ là bước phụ để audit. Đến pha repair mới thấy đó là điều kiện tiên quyết: vì có snapshot nên khôi phục chỉ là chạy lại đúng logic cleaning, và kết quả trùng khít baseline. Nếu repair bằng cách gọi lại Crossref thì corpus sẽ khác đi và ba trạng thái mất tính so sánh — nói cách khác, không có snapshot thì không có cách nào chứng minh repair thành công.
+
+2. **Về data quality/observability — một quality gate chỉ phát hiện được đúng những gì nó được viết ra để hỏi.** Tôi tạo sáu kịch bản corruption nhưng chỉ ba kịch bản làm quality report FAIL. `inject_noise` và `truncate_title` vẫn kéo metric xuống mà không sinh bất kỳ tín hiệu nào. Bài học là "quality PASS" không đồng nghĩa với "dữ liệu tốt" — nó chỉ có nghĩa là dữ liệu vượt qua các câu hỏi mình đã nghĩ ra. Đây cũng là lý do tôi bắt mỗi check ghi lại `observed` và `expected` thay vì chỉ trả về true/false: khi FAIL còn lần ngược được về dòng dữ liệu, khi PASS còn biết nó đã kiểm cái gì.
+
+3. **Về ảnh hưởng của dữ liệu tới RAG agent — không phải mọi lỗi dữ liệu đều tác động như nhau, và điều đó đo được.** Ở lần chạy đầu tiên, `retrieval_hit_rate` giữ nguyên 1.0000 dù năm kịch bản corruption đã chạm tới 5/6 paper được đánh giá. Nguyên nhân: chỉ kịch bản xóa document mới làm retrieval trượt, còn các kịch bản khác chỉ bóp méo nội dung nên tài liệu vẫn tìm ra được. Sau khi sửa để việc xóa nhắm đúng paper mà test set hỏi tới, hit rate mới tụt xuống 0.6667. Điều rút ra là phải phân biệt lỗi làm **mất** dữ liệu với lỗi làm **hỏng** dữ liệu: loại thứ nhất đánh vào tầng retrieval, loại thứ hai đánh vào tầng câu trả lời, và chúng để lại dấu vết khác nhau trên metric.
 
 ### Nếu có thêm thời gian
 
@@ -172,5 +180,5 @@ Một hướng cụ thể: thêm check phát hiện dữ liệu bị bóp méo v
 - [ ] Báo cáo không chứa `.env`, API key, token hoặc secret.
 - [ ] Báo cáo này không phải bản sao nguyên văn của báo cáo nhóm hoặc báo cáo thành viên khác.
 
-**Họ và tên:** [Điền họ tên]
-**Ngày xác nhận:** [YYYY-MM-DD]
+**Họ và tên:** Nguyễn Hải Quân
+**Ngày xác nhận:** 2026-08-06

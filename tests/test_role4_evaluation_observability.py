@@ -17,6 +17,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from statistics import mean
 import re
 
 import pandas as pd
@@ -477,6 +478,28 @@ class TestCommittedArtifacts:
     def test_answers_exist_for_every_state(self):
         for state in ("baseline", "corrupted", "repaired"):
             assert read_json(DATA_DIR / "results" / f"{state}_answers.json")
+
+    def test_metrics_match_the_answers_they_summarise(self):
+        """A merge, or a re-run of only part of the flow, can leave the metrics file and
+        the answers file describing different runs. The numbers quoted in the reports come
+        from the metrics file, so a mismatch means the reports cite evidence that the
+        answers do not support."""
+        for state in ("baseline", "corrupted", "repaired"):
+            answers = read_json(DATA_DIR / "results" / f"{state}_answers.json")
+            metrics = read_json(DATA_DIR / "results" / f"{state}_metrics.json")
+            assert metrics["samples"] == len(answers), state
+            assert metrics["retrieval_hit_rate"] == pytest.approx(
+                mean(1.0 if item["retrieval_hit"] else 0.0 for item in answers)
+            ), state
+            assert metrics["mean_token_f1"] == pytest.approx(
+                mean(item["token_f1"] for item in answers)
+            ), state
+            assert metrics["judge_accuracy"] == pytest.approx(
+                mean(1.0 if item["judge"]["correct"] else 0.0 for item in answers)
+            ), state
+            assert metrics["mean_judge_score"] == pytest.approx(
+                mean(item["judge"]["score"] for item in answers)
+            ), state
 
     def test_corruption_degraded_every_metric(self, metrics):
         for key in METRIC_KEYS:
