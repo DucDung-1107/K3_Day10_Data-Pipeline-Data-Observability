@@ -58,8 +58,8 @@ def main():
     if lookup_result:
         print("  Found exact paper:")
         print(f"    Title: {lookup_result['title']}")
-        print(f"    Published: {lookup_result['published']}")
-        print(f"    Authors: {lookup_result['authors_joined']}")
+        print(f"    Published: {lookup_result['metadata']['published']}")
+        print(f"    Authors: {lookup_result['metadata']['authors_joined']}")
     else:
         print("  Paper not found!")
         
