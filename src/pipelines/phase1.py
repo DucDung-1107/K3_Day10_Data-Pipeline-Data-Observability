@@ -14,6 +14,13 @@ from observability.quality import run_data_quality_checks, build_freshness_repor
 from observability.reporting import generate_phase1_report
 
 
+def validate_clean_schema(df: pd.DataFrame) -> None:
+    """Mục 3: Đảm bảo Schema ổn định trước khi đi tiếp"""
+    expected_columns = {"id", "title", "abstract"} 
+    missing_cols = expected_columns - set(df.columns)
+    if missing_cols:
+        raise ValueError(f"Blocker: Clean Schema không ổn định! Thiếu các cột bắt buộc: {missing_cols}")
+
 def main() -> None:
     # 1. Load settings
     print("Loading settings...")
@@ -32,11 +39,31 @@ def main() -> None:
         records = load_raw_records(raw_records_path)
         print(f"Loaded {len(records)} raw records.")
         
+    raw_count = len(records)
+        
     # 3. Clean records
     run_date = datetime.now(UTC)
     print(f"Running cleaning pipeline with run_date = {run_date}...")
     df = build_clean_dataframe(records, run_date)
+    clean_count = len(df)
     
+    # --- MỤC 1 & 2: KIỂM TRA ĐIỀU KIỆN DỪNG VÀ HAO HỤT DỮ LIỆU ---
+    print(f"   -> Raw count: {raw_count} | Clean count: {clean_count}")
+    
+    # Điều kiện dừng 1 (Mục 1)
+    if clean_count == 0:
+        raise ValueError("Blocker: Tập dữ liệu trống sau khi làm sạch. Dừng pipeline!")
+    
+    # Điều kiện dừng 2 (Mục 2): Bất thường hao hụt (Ví dụ: mất quá 80% dữ liệu)
+    drop_rate = (raw_count - clean_count) / raw_count
+    if drop_rate > 0.8:
+        raise RuntimeError(f"Blocker: Hao hụt dữ liệu bất thường! "
+                           f"Raw: {raw_count}, Clean: {clean_count}. Drop rate: {drop_rate:.1%}")
+                           
+    # --- MỤC 3: KIỂM TRA SCHEMA TRƯỚC KHI INDEX ---
+    validate_clean_schema(df)
+    print("   -> Schema hợp lệ, sẵn sàng cho RAG!")
+
     # Save cleaned files
     print(f"Saving cleaned CSV to {settings.paths.clean_csv}")
     settings.paths.clean_csv.parent.mkdir(parents=True, exist_ok=True)
